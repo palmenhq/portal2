@@ -13,7 +13,7 @@ func generateCurve25519PrivateKey() ([]byte, error) {
 	var privateKey = make([]byte, privateKeySize)
 
 	for index := range privateKey {
-		secureRandomInt, err := rand.Int(rand.Reader, big.NewInt(256))
+		secureRandomInt, err := rand.Int(rand.Reader, big.NewInt(255))
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate random byte: %s", err)
 		}
