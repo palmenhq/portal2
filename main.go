@@ -46,19 +46,41 @@ func main() {
 			{
 				Name:      "send",
 				ArgsUsage: "<target>",
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:    "no-trim-newline",
+						Aliases: []string{"t"},
+						Value:   false,
+					},
+				},
 				Action: func(ctx *cli.Context) error {
 					if ctx.Args().Len() == 0 {
 						return fmt.Errorf("no target address provided (expected i.e. \"127.0.0.1:1337\")")
 					}
 
+					if ctx.Args().Len() > 1 {
+						return fmt.Errorf("too many arguments (expected flags before target address)")
+					}
+
 					targetAddress := ctx.Args().First()
-					var stdinBytes []byte
-					_, err := os.Stdin.Read(stdinBytes)
+
+					stdinStat, err := os.Stdin.Stat()
+					if err != nil {
+						return fmt.Errorf("error reading stdin")
+					}
+					if stdinStat.Size() == 0 {
+						return fmt.Errorf("cannot send empty message")
+					}
+					messageBuf := bytes.NewBuffer([]byte{})
+					_, err = messageBuf.ReadFrom(os.Stdin)
 					if err != nil {
 						return err
 					}
-
-					return Send(stdinBytes, targetAddress)
+					if ctx.Bool("no-trim-newline") {
+						return Send(messageBuf.Bytes(), targetAddress)
+					} else {
+						return Send(bytes.TrimRight(messageBuf.Bytes(), "\n"), targetAddress)
+					}
 				},
 			},
 		},
@@ -148,7 +170,23 @@ func handleListenConnection(conn net.Conn) {
 	}
 	printVerboseln("computed shared secret \"%x\"", sharedSecret)
 
-	printInfoln("e2e key exchange complete")
+	printInfoln("e2e encryption key exchange complete")
+
+	encryptedMessage, err := readBase64Line(connReader)
+	if err != nil {
+		printErrorln("error reading encrypted message: %s", err)
+		return
+	}
+	decryptedMessage, err := AesGcmDecrypt(encryptedMessage, nonce, sharedSecret)
+	if err != nil {
+		printErrorln("error decrypting message: %s", err)
+		_, _ = conn.Write(bytes.Join([][]byte{[]byte("decryption error"), []byte("\n")}, []byte{}))
+		return
+	}
+
+	fmt.Printf("decrypted message:\n-----\n%s\n-----\n", decryptedMessage)
+
+	_, _ = conn.Write(bytes.Join([][]byte{[]byte("decryption success"), []byte("\n")}, []byte{}))
 }
 
 func Send(message []byte, target string) error {
@@ -205,13 +243,36 @@ func Send(message []byte, target string) error {
 	}
 	printVerboseln("computed shared secret \"%x\"", sharedSecret)
 
-	printInfoln("e2e key exchange complete")
+	printInfoln("e2e encryption key exchange complete")
+
+	printVerboseln("encrypting message")
+	encryptedMessage, err := AesGcmEncrypt(message, nonce, sharedSecret)
+	if err != nil {
+		return err
+	}
+	printVerboseln("sending message")
+	_, err = writeBase64Line(conn, encryptedMessage)
+	if err != nil {
+		return err
+	}
+	printVerboseln("encrypted message (%d bytes) sent", len(message))
+
+	receipt, _, err := connReader.ReadLine()
+	if err != nil {
+		return fmt.Errorf("error reading receipt, message delivery status unknown: %s", err)
+	}
+
+	if string(receipt) == "decryption success" {
+		printInfoln("message successfully delivered and decrypted")
+	} else if string(receipt) == "decryption error" {
+		printErrorln("recipient decryption error")
+	}
 
 	return nil
 }
 
 func writeHello(conn io.Writer) error {
-	_, err := conn.Write(bytes.Join([][]byte{[]byte("hello"), newlineByteArray}, []byte("")))
+	_, err := conn.Write(bytes.Join([][]byte{[]byte("hello"), newlineByteArray}, []byte{}))
 	if err != nil {
 		return fmt.Errorf("error writing hello: %s, closing connection\n", err)
 	}

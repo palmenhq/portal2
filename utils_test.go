@@ -19,14 +19,14 @@ func Test_writeBase64Line(t *testing.T) {
 		t.Errorf("error writing conection line: %s", err)
 	}
 
-	expectedResult := bytes.Join([][]byte{encodeBase64(input), []byte("\n")}, []byte(""))
+	expectedResult := bytes.Join([][]byte{encodeBase64(input), []byte("\n")}, []byte{})
 	if !bytes.Equal(buf.Bytes(), expectedResult) {
 		t.Errorf("expected result %s to equal %s", buf, expectedResult)
 	}
 }
 
 func Test_readBase64Line(t *testing.T) {
-	input := bytes.Join([][]byte{encodeBase64([]byte("howdy")), []byte("\n")}, []byte(""))
+	input := bytes.Join([][]byte{encodeBase64([]byte("howdy")), []byte("\n")}, []byte{})
 	buf := bytes.NewBuffer(input)
 	result, err := readBase64Line(bufio.NewReader(buf))
 	if err != nil {

@@ -27,7 +27,7 @@ func printErrorln(format string, a ...interface{}) {
 }
 
 func writeBase64Line(writer io.Writer, line []byte) (int, error) {
-	val := bytes.Join([][]byte{encodeBase64(line), newlineByteArray}, []byte(""))
+	val := bytes.Join([][]byte{encodeBase64(line), newlineByteArray}, []byte{})
 	return writer.Write(val)
 }
 

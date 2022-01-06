@@ -63,12 +63,12 @@ func AesGcmDecrypt(ciphertext, nonce, sharedSecret []byte) ([]byte, error) {
 	return plaintext, nil
 }
 
-func generateTransactionKeys() ([]byte, []byte, error) {
-	privateKey, err := generateCurve25519PrivateKey()
+func generateTransactionKeys() (privateKey []byte, publicKey []byte, err error) {
+	privateKey, err = generateCurve25519PrivateKey()
 	if err != nil {
 		return nil, nil, fmt.Errorf("error generating ec private key: %s\n", err)
 	}
-	publicKey, err := deriveCurve25519PublicKey(privateKey)
+	publicKey, err = deriveCurve25519PublicKey(privateKey)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error generating ec public key: %s\n", err)
 	}
