@@ -46,8 +46,11 @@ func readBase64Line(connReader *bufio.Reader) ([]byte, error) {
 	return line, nil
 }
 
-func assertConnHello(connReader *bufio.Reader) error {
-	helloMaybe, _, err := connReader.ReadLine()
+const helloLength = 5
+
+func assertConnHello(conn *bufio.Reader) error {
+	helloMaybe := make([]byte, helloLength)
+	_, err := conn.Read(helloMaybe)
 	if err != nil {
 		return fmt.Errorf("error reading hello: %s", err)
 	}

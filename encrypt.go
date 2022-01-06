@@ -76,27 +76,25 @@ func generateTransactionKeys() (privateKey []byte, publicKey []byte, err error) 
 	return privateKey, publicKey, nil
 }
 
+const nonceLength = 12
+
 func readNonce(connReader *bufio.Reader) ([]byte, error) {
-	nonce, err := readBase64Line(connReader)
+	nonce := make([]byte, nonceLength)
+	_, err := connReader.Read(nonce)
 	if err != nil {
 		return nil, fmt.Errorf("error reading nonce: %s", err)
-	}
-
-	if len(nonce) != 12 {
-		return nil, fmt.Errorf("invalid nonce, expected 12 bytes but was \"%x\"", nonce)
 	}
 
 	return nonce, nil
 }
 
+const publicKeyLength = 32
+
 func readPublicKey(connReader *bufio.Reader) ([]byte, error) {
-	publicKey, err := readBase64Line(connReader)
+	publicKey := make([]byte, publicKeyLength)
+	_, err := connReader.Read(publicKey)
 	if err != nil {
 		return nil, fmt.Errorf("error reading public key: %s", err)
-	}
-
-	if len(publicKey) != 32 {
-		return nil, fmt.Errorf("invalid public key, expected 32 bytes but was \"%x\"", publicKey)
 	}
 
 	return publicKey, nil

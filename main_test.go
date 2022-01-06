@@ -7,7 +7,7 @@ import (
 )
 
 func Test_assertConnHello(t *testing.T) {
-	okConnReader := bufio.NewReader(strings.NewReader("hello\n"))
+	okConnReader := bufio.NewReader(strings.NewReader("hello"))
 	 err := assertConnHello(okConnReader)
 	 if err != nil {
 	 	t.Errorf("expected hello to be ok, but got error %s", err)

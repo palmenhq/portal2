@@ -140,8 +140,7 @@ func handleListenConnection(conn net.Conn) {
 	}
 
 	printVerboseln("sending public key \"%x\"", thisPublicKey)
-	_, err = writeBase64Line(conn.(io.Writer), thisPublicKey)
-	if err != nil {
+	if _, err := conn.Write(thisPublicKey); err != nil {
 		printErrorln(err.Error())
 		return
 	}
@@ -225,14 +224,12 @@ func Send(message []byte, target string) error {
 	printVerboseln("received public key \"%x\"", otherPublicKey)
 
 	printVerboseln("sending nonce \"%x\"", nonce)
-	_, err = writeBase64Line(conn.(io.Writer), nonce)
-	if err != nil {
+	if _, err := conn.Write(nonce); err != nil {
 		return err
 	}
 
 	printVerboseln("sending public key \"%x\"", thisPublicKey)
-	_, err = writeBase64Line(conn.(io.Writer), thisPublicKey)
-	if err != nil {
+	if _, err := conn.Write(thisPublicKey); err != nil {
 		return err
 	}
 
@@ -272,7 +269,7 @@ func Send(message []byte, target string) error {
 }
 
 func writeHello(conn io.Writer) error {
-	_, err := conn.Write(bytes.Join([][]byte{[]byte("hello"), newlineByteArray}, []byte{}))
+	_, err := conn.Write([]byte("hello"))
 	if err != nil {
 		return fmt.Errorf("error writing hello: %s, closing connection\n", err)
 	}

@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"strings"
 	"testing"
 )
 
@@ -48,8 +47,7 @@ func Test_generateTransactionKeys(t *testing.T) {
 }
 
 func Test_readNonce(t *testing.T) {
-	inputRaw := GenerateNonce()
-	okBuf := bytes.NewBuffer(bytes.Join([][]byte{encodeBase64(inputRaw), []byte{}}, []byte("\n")))
+	okBuf := bytes.NewBuffer(GenerateNonce())
 
 	input, err := readNonce(bufio.NewReader(okBuf))
 	if err != nil {
@@ -57,12 +55,6 @@ func Test_readNonce(t *testing.T) {
 	}
 	if len(input) != 12 {
 		t.Errorf("expected nonce to have length 12 but was %d", len(input))
-	}
-
-	invalidNonceBuf := bytes.NewBuffer(bytes.Join([][]byte{encodeBase64([]byte("invalid")), []byte{}}, []byte("\n")))
-	_, err = readNonce(bufio.NewReader(invalidNonceBuf))
-	if !strings.Contains(err.Error(), "invalid nonce") {
-		t.Errorf("expected invalid nonce error but got %s", err)
 	}
 }
 
@@ -72,7 +64,7 @@ func Test_readPublicKey(t *testing.T) {
 		t.Error(err)
 	}
 
-	okBuf := bytes.NewBuffer(bytes.Join([][]byte{encodeBase64(inputRaw), []byte{}}, []byte("\n")))
+	okBuf := bytes.NewBuffer(inputRaw)
 
 	publicKey, err := readPublicKey(bufio.NewReader(okBuf))
 	if err != nil {
@@ -80,11 +72,5 @@ func Test_readPublicKey(t *testing.T) {
 	}
 	if len(publicKey) != 32 {
 		t.Errorf("expected public key to have length 32 but was %x", publicKey)
-	}
-
-	invalidPublicKeyBuf := bytes.NewBuffer(bytes.Join([][]byte{encodeBase64([]byte("invalid")), []byte{}}, []byte("\n")))
-	_, err = readPublicKey(bufio.NewReader(invalidPublicKeyBuf))
-	if !strings.Contains(err.Error(), "invalid public key") {
-		t.Errorf("expected invalid public key error but got %s", err)
 	}
 }
