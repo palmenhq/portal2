@@ -1,4 +1,4 @@
-package portal2
+package main
 
 import (
 	"bytes"

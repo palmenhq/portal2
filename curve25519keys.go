@@ -1,4 +1,4 @@
-package portal2
+package main
 
 import (
 	"crypto/rand"
@@ -31,8 +31,6 @@ func generateCurve25519PrivateKey() ([]byte, error) {
 }
 
 func deriveCurve25519PublicKey(privateKey []byte) ([]byte, error) {
-	var publicKey []byte
-
 	publicKey, err := curve25519.X25519(privateKey, curve25519.Basepoint)
 	if err != nil {
 		return nil, fmt.Errorf("error deriving public key from private key: %s", err)
