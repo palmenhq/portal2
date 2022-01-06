@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -60,4 +61,43 @@ func AesGcmDecrypt(ciphertext, nonce, sharedSecret []byte) ([]byte, error) {
 	}
 
 	return plaintext, nil
+}
+
+func generateTransactionKeys() ([]byte, []byte, error) {
+	privateKey, err := generateCurve25519PrivateKey()
+	if err != nil {
+		return nil, nil, fmt.Errorf("error generating ec private key: %s\n", err)
+	}
+	publicKey, err := deriveCurve25519PublicKey(privateKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error generating ec public key: %s\n", err)
+	}
+
+	return privateKey, publicKey, nil
+}
+
+func readNonce(connReader *bufio.Reader) ([]byte, error) {
+	nonce, err := readBase64Line(connReader)
+	if err != nil {
+		return nil, fmt.Errorf("error reading nonce: %s", err)
+	}
+
+	if len(nonce) != 12 {
+		return nil, fmt.Errorf("invalid nonce, expected 12 bytes but was \"%x\"", nonce)
+	}
+
+	return nonce, nil
+}
+
+func readPublicKey(connReader *bufio.Reader) ([]byte, error) {
+	publicKey, err := readBase64Line(connReader)
+	if err != nil {
+		return nil, fmt.Errorf("error reading public key: %s", err)
+	}
+
+	if len(publicKey) != 32 {
+		return nil, fmt.Errorf("invalid public key, expected 32 bytes but was \"%x\"", publicKey)
+	}
+
+	return publicKey, nil
 }

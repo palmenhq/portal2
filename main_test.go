@@ -2,36 +2,9 @@ package main
 
 import (
 	"bufio"
-	"bytes"
-	"net"
 	"strings"
 	"testing"
 )
-
-type mockConn struct {
-	net.Conn
-}
-
-var interceptedMockConnWriteBytes []byte
-
-func (mc mockConn) Write(b []byte) (int, error) {
-	interceptedMockConnWriteBytes = b
-	return len(b), nil
-}
-
-func Test_connWriteLine(t *testing.T) {
-	conn := mockConn{}
-	input := []byte("howdy")
-	_, err := connWriteLine(conn, input)
-
-	if err != nil {
-		t.Errorf("error writing conection line: %s", err)
-	}
-
-	if !bytes.Equal(interceptedMockConnWriteBytes, bytes.Join([][]byte{input, []byte("\n")}, []byte(""))) {
-		t.Errorf("expected intercepted bytes %s to equal input %s", interceptedMockConnWriteBytes, input)
-	}
-}
 
 func Test_assertConnHello(t *testing.T) {
 	okConnReader := bufio.NewReader(strings.NewReader("hello\n"))

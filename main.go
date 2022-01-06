@@ -4,43 +4,88 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/akamensky/argparse"
+	"github.com/urfave/cli/v2"
+	"io"
 	"net"
 	"os"
 )
 
 func main() {
-	parser := argparse.NewParser("portal2", "Share secrets safely e2e")
+	app := &cli.App{
+		Name:  "portal2",
+		Usage: "p2p messaging with e2e encryption",
+		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name:    "verbose",
+				Aliases: []string{"v"},
+				Value:   false,
+			},
+		},
+		Before: func(ctx *cli.Context) error {
+			if ctx.Bool("verbose") {
+				isVerbose = true
+			}
 
-	listenCommand := parser.NewCommand("listen", "Listen for incoming messages")
-	listenPort := listenCommand.Int("p", "port", &argparse.Options{})
+			return nil
+		},
+		Commands: []*cli.Command{
+			{
+				Name: "listen",
+				Flags: []cli.Flag{
+					&cli.IntFlag{
+						Name:    "port",
+						Aliases: []string{"p"},
+						Value:   1337,
+						Usage:   "port to listen on",
+					},
+				},
+				Action: func(ctx *cli.Context) error {
+					return Listen(ctx.Int("port"))
+				},
+			},
+			{
+				Name:      "send",
+				ArgsUsage: "<target>",
+				Action: func(ctx *cli.Context) error {
+					if ctx.Args().Len() == 0 {
+						return fmt.Errorf("no target address provided (expected i.e. \"127.0.0.1:1337\")")
+					}
 
-	//sendCommand := parser.NewCommand("send", "Send a message")
-	//sendTarget := sendCommand.
+					targetAddress := ctx.Args().First()
+					var stdinBytes []byte
+					_, err := os.Stdin.Read(stdinBytes)
+					if err != nil {
+						return err
+					}
 
-	err := parser.Parse(os.Args)
-	if err != nil {
-		fmt.Fprint(os.Stderr, parser.Usage(err))
+					return Send(stdinBytes, targetAddress)
+				},
+			},
+		},
 	}
 
-	if listenCommand.Happened() {
-		Listen(*listenPort)
+	err := app.Run(os.Args)
+	if err != nil {
+		printErrorln(err.Error())
+		os.Exit(1)
 	}
 }
 
-func Listen(port int) {
+func Listen(port int) error {
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		panic(err)
 	}
 
+	printInfoln("accepting incoming connections on port %d", port)
+
 	for {
-		connection, err := listener.Accept()
+		conn, err := listener.Accept()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error accepting connection: %s", err)
+			return fmt.Errorf("error accepting connection: %s", err)
 		} else {
-			fmt.Printf("accepted new connection from %s", connection.RemoteAddr())
-			go handleListenConnection(connection)
+			printInfoln("---\naccepted new connection from %s", conn.RemoteAddr())
+			go handleListenConnection(conn)
 		}
 	}
 }
@@ -49,10 +94,11 @@ var newlineByteArray = []byte("\n")
 
 func handleListenConnection(conn net.Conn) {
 	defer conn.Close()
+	defer printInfoln("connection closed")
 
 	connReader := bufio.NewReader(conn)
 
-	err := writeHello(conn)
+	err := writeHello(conn.(io.Writer))
 	if err != nil {
 		printErrorln(err.Error())
 		return
@@ -64,68 +110,108 @@ func handleListenConnection(conn net.Conn) {
 		return
 	}
 
-	//nonce := GenerateNonce()
-	//privateKey, err := generateCurve25519PrivateKey()
-	//if err != nil {
-	//	fmt.Fprintf(os.Stderr, "error generating ec private key: %s\n", err)
-	//	return
-	//}
-	//publicKey, err := deriveCurve25519PublicKey(privateKey)
-	//if err != nil {
-	//	fmt.Fprintf(os.Stderr, "error generating ec public key: %s\n", err)
-	//	return
-	//}
-	//
-	//_, err = connWriteLine(connection, bytes.Join([][]byte{nonce, publicKey, []byte("")}, newlineByteArray))
-	//if err != nil {
-	//	fmt.Fprintf(os.Stderr, "error sending nonce: %s\n", err)
-	//	return
-	//}
+	printVerboseln("generating transaction keys")
+	privateKey, thisPublicKey, err := generateTransactionKeys()
+	if err != nil {
+		printErrorln(err.Error())
+		return
+	}
+
+	printVerboseln("sending public key \"%x\"", thisPublicKey)
+	_, err = writeBase64Line(conn.(io.Writer), thisPublicKey)
+	if err != nil {
+		printErrorln(err.Error())
+		return
+	}
+
+	printVerboseln("reading nonce...")
+	nonce, err := readNonce(connReader)
+	if err != nil {
+		printErrorln(err.Error())
+		return
+	}
+	printVerboseln("received nonce \"%x\"", nonce)
+
+	printVerboseln("reading public key...")
+	otherPublicKey, err := readPublicKey(connReader)
+	if err != nil {
+		printErrorln(err.Error())
+		return
+	}
+	printVerboseln("received public key \"%x\"", thisPublicKey)
+
+	printVerboseln("computing shared secret...")
+	sharedSecret, err := computeSharedCurve25519Secret(otherPublicKey, privateKey)
+	if err != nil {
+		printErrorln(err.Error())
+		return
+	}
+	printInfoln("computed shared secret \"%x\"", sharedSecret)
 }
 
-func Send(message []byte, target string) {
+func Send(message []byte, target string) error {
+	printInfoln("connecting to %s...", target)
 	conn, err := net.Dial("tcp", target)
 	if err != nil {
-		printErrorln("unable to dial %s: %s\n", target, err)
-		return
+		return err
 	}
 	defer conn.Close()
+	defer printInfoln("connection closed")
 
 	connReader := bufio.NewReader(conn)
 
 	err = assertConnHello(connReader)
 	if err != nil {
-		printErrorln(err.Error())
-		return
+		return err
 	}
 
-	err = writeHello(conn)
+	err = writeHello(conn.(io.Writer))
 	if err != nil {
-		printErrorln(err.Error())
-		return
+		return err
 	}
-}
 
-func connWriteLine(connection net.Conn, line []byte) (int, error) {
-	return connection.Write(bytes.Join([][]byte{line, newlineByteArray}, []byte("")))
-}
-
-func assertConnHello(connReader *bufio.Reader) error {
-	helloMaybe, _, err := connReader.ReadLine()
+	printVerboseln("generating transaction keys")
+	privateKey, thisPublicKey, err := generateTransactionKeys()
 	if err != nil {
-		return fmt.Errorf("error reading hello: %s", err)
+		return err
 	}
-	if string(helloMaybe) != "hello" {
-		return fmt.Errorf("unexpected hello, received \"%s\", closing connection", helloMaybe)
+	nonce := GenerateNonce()
+
+	printVerboseln("reading public key...")
+	otherPublicKey, err := readPublicKey(connReader)
+	if err != nil {
+		return err
 	}
+	printVerboseln("received public key \"%x\"", otherPublicKey)
+
+	printVerboseln("sending nonce \"%x\"", nonce)
+	_, err = writeBase64Line(conn.(io.Writer), nonce)
+	if err != nil {
+		return err
+	}
+
+	printVerboseln("sending public key \"%x\"", thisPublicKey)
+	_, err = writeBase64Line(conn.(io.Writer), thisPublicKey)
+	if err != nil {
+		return err
+	}
+
+	printVerboseln("computing shared secret...")
+	sharedSecret, err := computeSharedCurve25519Secret(otherPublicKey, privateKey)
+	if err != nil {
+		return err
+	}
+	printInfoln("computed shared secret \"%x\"", sharedSecret)
+
 
 	return nil
 }
 
-func writeHello(conn net.Conn) error {
-	_, err := connWriteLine(conn, []byte("hello"))
+func writeHello(conn io.Writer) error {
+	_, err := conn.Write(bytes.Join([][]byte{[]byte("hello"), newlineByteArray}, []byte("")))
 	if err != nil {
 		return fmt.Errorf("error writing hello: %s, closing connection\n", err)
 	}
+	printVerboseln("successfully sent hello")
 	return nil
 }
