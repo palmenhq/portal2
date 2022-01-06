@@ -146,7 +146,9 @@ func handleListenConnection(conn net.Conn) {
 		printErrorln(err.Error())
 		return
 	}
-	printInfoln("computed shared secret \"%x\"", sharedSecret)
+	printVerboseln("computed shared secret \"%x\"", sharedSecret)
+
+	printInfoln("e2e key exchange complete")
 }
 
 func Send(message []byte, target string) error {
@@ -201,8 +203,9 @@ func Send(message []byte, target string) error {
 	if err != nil {
 		return err
 	}
-	printInfoln("computed shared secret \"%x\"", sharedSecret)
+	printVerboseln("computed shared secret \"%x\"", sharedSecret)
 
+	printInfoln("e2e key exchange complete")
 
 	return nil
 }
