@@ -1,12 +1,12 @@
 package main
 
 import (
-	"bufio"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"math/big"
 	"time"
 )
@@ -78,9 +78,9 @@ func generateTransactionKeys() (privateKey []byte, publicKey []byte, err error) 
 
 const nonceLength = 12
 
-func readNonce(connReader *bufio.Reader) ([]byte, error) {
+func readNonce(conn io.Reader) ([]byte, error) {
 	nonce := make([]byte, nonceLength)
-	_, err := connReader.Read(nonce)
+	_, err := conn.Read(nonce)
 	if err != nil {
 		return nil, fmt.Errorf("error reading nonce: %s", err)
 	}
@@ -90,9 +90,9 @@ func readNonce(connReader *bufio.Reader) ([]byte, error) {
 
 const publicKeyLength = 32
 
-func readPublicKey(connReader *bufio.Reader) ([]byte, error) {
+func readPublicKey(conn io.Reader) ([]byte, error) {
 	publicKey := make([]byte, publicKeyLength)
-	_, err := connReader.Read(publicKey)
+	_, err := conn.Read(publicKey)
 	if err != nil {
 		return nil, fmt.Errorf("error reading public key: %s", err)
 	}

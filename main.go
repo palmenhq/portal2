@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"github.com/urfave/cli/v2"
 	"io"
@@ -118,15 +119,13 @@ func handleListenConnection(conn net.Conn) {
 	defer conn.Close()
 	defer printInfoln("connection closed")
 
-	connReader := bufio.NewReader(conn)
-
 	err := writeHello(conn.(io.Writer))
 	if err != nil {
 		printErrorln(err.Error())
 		return
 	}
 
-	err = assertConnHello(connReader)
+	err = assertConnHello(conn)
 	if err != nil {
 		printErrorln(err.Error())
 		return
@@ -146,7 +145,7 @@ func handleListenConnection(conn net.Conn) {
 	}
 
 	printVerboseln("reading nonce...")
-	nonce, err := readNonce(connReader)
+	nonce, err := readNonce(conn)
 	if err != nil {
 		printErrorln(err.Error())
 		return
@@ -154,7 +153,7 @@ func handleListenConnection(conn net.Conn) {
 	printVerboseln("received nonce \"%x\"", nonce)
 
 	printVerboseln("reading public key...")
-	otherPublicKey, err := readPublicKey(connReader)
+	otherPublicKey, err := readPublicKey(conn)
 	if err != nil {
 		printErrorln(err.Error())
 		return
@@ -171,21 +170,28 @@ func handleListenConnection(conn net.Conn) {
 
 	printInfoln("e2e encryption key exchange complete")
 
-	encryptedMessage, err := readBase64Line(connReader)
-	if err != nil {
-		printErrorln("error reading encrypted message: %s", err)
+	encryptedMessageLengthRaw := make([]byte, 8)
+	if _, err := conn.Read(encryptedMessageLengthRaw); err != nil {
+		printErrorln("error reading message length: %s", err)
 		return
 	}
+	encryptedMessageLength := binary.BigEndian.Uint32(encryptedMessageLengthRaw)
+	encryptedMessage := make([]byte, encryptedMessageLength)
+	if _, err := conn.Read(encryptedMessage); err != nil {
+		printErrorln("error reading message: %s", err)
+		return
+	}
+
 	decryptedMessage, err := AesGcmDecrypt(encryptedMessage, nonce, sharedSecret)
 	if err != nil {
 		printErrorln("error decrypting message: %s", err)
-		_, _ = conn.Write(bytes.Join([][]byte{[]byte("decryption error"), []byte("\n")}, []byte{}))
+		_, _ = conn.Write([]byte("err"))
 		return
 	}
 
 	fmt.Printf("decrypted message:\n-----\n%s\n-----\n", decryptedMessage)
 
-	_, _ = conn.Write(bytes.Join([][]byte{[]byte("decryption success"), []byte("\n")}, []byte{}))
+	_, _ = conn.Write([]byte("oki"))
 }
 
 func Send(message []byte, target string) error {
@@ -248,20 +254,23 @@ func Send(message []byte, target string) error {
 		return err
 	}
 	printVerboseln("sending message")
-	_, err = writeBase64Line(conn, encryptedMessage)
-	if err != nil {
+	messageLength := int2UintByteArray(len(encryptedMessage))
+	if _, err := conn.Write(messageLength); err != nil {
 		return err
 	}
-	printVerboseln("encrypted message (%d bytes) sent", len(message))
+	if _, err = conn.Write(encryptedMessage); err != nil {
+		return err
+	}
+	printVerboseln("encrypted message (%d bytes, %d encrypted) sent", len(message), len(encryptedMessage))
 
-	receipt, _, err := connReader.ReadLine()
-	if err != nil {
+	receipt := make([]byte, 3)
+	if _, err := conn.Read(receipt); err != nil {
 		return fmt.Errorf("error reading receipt, message delivery status unknown: %s", err)
 	}
 
-	if string(receipt) == "decryption success" {
+	if string(receipt) == "oki" {
 		printInfoln("message successfully delivered and decrypted")
-	} else if string(receipt) == "decryption error" {
+	} else if string(receipt) == "err" {
 		printErrorln("recipient decryption error")
 	}
 

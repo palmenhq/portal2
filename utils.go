@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
-	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
@@ -26,29 +24,9 @@ func printErrorln(format string, a ...interface{}) {
 	fmt.Fprintln(os.Stderr, fmt.Sprintf(format, a...))
 }
 
-func writeBase64Line(writer io.Writer, line []byte) (int, error) {
-	val := bytes.Join([][]byte{encodeBase64(line), newlineByteArray}, []byte{})
-	return writer.Write(val)
-}
-
-func readBase64Line(connReader *bufio.Reader) ([]byte, error) {
-	base64Line, _, err := connReader.ReadLine()
-	if err != nil {
-		return nil, fmt.Errorf("error reading line: %s", err)
-	}
-
-	line := make([]byte, base64.RawStdEncoding.DecodedLen(len(base64Line)))
-	_, err = base64.RawStdEncoding.Decode(line, base64Line)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding base64: %s", err)
-	}
-
-	return line, nil
-}
-
 const helloLength = 5
 
-func assertConnHello(conn *bufio.Reader) error {
+func assertConnHello(conn io.Reader) error {
 	helloMaybe := make([]byte, helloLength)
 	_, err := conn.Read(helloMaybe)
 	if err != nil {
@@ -63,19 +41,8 @@ func assertConnHello(conn *bufio.Reader) error {
 	return nil
 }
 
-func encodeBase64(input []byte) []byte {
-	result := make([]byte, base64.RawStdEncoding.EncodedLen(len(input)))
-	base64.RawStdEncoding.Encode(result, input)
-
-	return result
-}
-
-func decodeBase64(input []byte) ([]byte, error) {
-	result := make([]byte, base64.RawStdEncoding.DecodedLen(len(input)))
-	_, err := base64.RawStdEncoding.Decode(result, input)
-	if err != nil {
-		return nil, err
-	}
-
-	return result, nil
+func int2UintByteArray(input int) []byte {
+	num := make([]byte, 8)
+	binary.BigEndian.PutUint32(num, uint32(input))
+	return num
 }

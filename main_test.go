@@ -1,19 +1,18 @@
 package main
 
 import (
-	"bufio"
 	"strings"
 	"testing"
 )
 
 func Test_assertConnHello(t *testing.T) {
-	okConnReader := bufio.NewReader(strings.NewReader("hello"))
+	okConnReader := strings.NewReader("hello")
 	 err := assertConnHello(okConnReader)
 	 if err != nil {
 	 	t.Errorf("expected hello to be ok, but got error %s", err)
 	 }
 
-	invalidHelloConnReader := bufio.NewReader(strings.NewReader("not hello"))
+	invalidHelloConnReader := strings.NewReader("not hello")
 	err = assertConnHello(invalidHelloConnReader)
 	if err == nil {
 		t.Error("expected invalid hello to give error but got nil")

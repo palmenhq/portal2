@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"testing"
 )
@@ -49,7 +48,7 @@ func Test_generateTransactionKeys(t *testing.T) {
 func Test_readNonce(t *testing.T) {
 	okBuf := bytes.NewBuffer(GenerateNonce())
 
-	input, err := readNonce(bufio.NewReader(okBuf))
+	input, err := readNonce(okBuf)
 	if err != nil {
 		t.Error(err)
 	}
@@ -64,9 +63,7 @@ func Test_readPublicKey(t *testing.T) {
 		t.Error(err)
 	}
 
-	okBuf := bytes.NewBuffer(inputRaw)
-
-	publicKey, err := readPublicKey(bufio.NewReader(okBuf))
+	publicKey, err := readPublicKey(bytes.NewReader(inputRaw))
 	if err != nil {
 		t.Error(err)
 	}
