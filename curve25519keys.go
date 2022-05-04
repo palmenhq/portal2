@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"fmt"
 	"golang.org/x/crypto/curve25519"
 	"math/big"
@@ -45,5 +46,7 @@ func computeSharedCurve25519Secret(otherPublicKey, thisPrivateKey []byte) ([]byt
 		return nil, fmt.Errorf("error computing shared secret: %s", err)
 	}
 
-	return sharedKey, err
+	sharedSecret := sha256.Sum256(sharedKey)
+
+	return sharedSecret[:], err
 }
